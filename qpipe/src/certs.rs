@@ -51,4 +51,5 @@ fn remove_access(path: &Path) -> Result<()> {
 #[cfg(windows)]
 fn remove_access(path: &Path) -> Result<()> {
     // windows is secure by default
+    Ok(())
 }

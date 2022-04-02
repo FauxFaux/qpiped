@@ -21,7 +21,7 @@ pub async fn run(certs: Certs, addr: SocketAddr) -> Result<()> {
 
     // apparently this is the supported .. draft version?
     // https://github.com/quinn-rs/quinn/blob/6fc46aefc65aeb3dd2d059ea6aabaf7a6c2f5bdb/quinn/examples/common/mod.rs#L69
-    server_crypto.alpn_protocols = vec![b"hq-29".to_vec()];
+    server_crypto.alpn_protocols = alpn_protocols();
 
     let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(server_crypto));
     server_config.use_retry(true);
@@ -51,8 +51,10 @@ async fn handle_connection(conn: quinn::Connecting) -> Result<()> {
     } = conn.await?;
 
     while let Some(stream) = bi_streams.next().await {
+        info!("server stream noticed");
         let stream = match stream {
             Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
+                info!("app closed");
                 return Ok(());
             }
             Err(e) => Err(e)?,
@@ -71,11 +73,19 @@ async fn handle_connection(conn: quinn::Connecting) -> Result<()> {
     Ok(())
 }
 
+pub fn alpn_protocols() -> Vec<Vec<u8>> {
+    vec![b"hq-29".to_vec()]
+}
+
 async fn handle_stream((mut send, mut recv): (quinn::SendStream, quinn::RecvStream)) -> Result<()> {
+    info!("server stream open");
     send.write_all(b"yo").await?;
+    send.flush().await?;
+    send.finish().await?;
+
     let mut buf = [0u8; 4];
     recv.read_exact(&mut buf).await?;
     info!("hello from client: {:?}", buf);
-    send.close().await?;
+    info!("closed?");
     Ok(())
 }

@@ -5,20 +5,29 @@ use std::net::ToSocketAddrs;
 use anyhow::{bail, Result};
 use qpipe::server::Certs;
 
-use crate::args::{Command, Serve};
+use crate::args::{Command, Connect, Serve};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
+
     use clap::Parser as _;
     let args: args::Cli = args::Cli::parse();
 
     match args.command {
         Command::Issue(_) => unimplemented!("issue"),
-        Command::Connect(_) => unimplemented!("connect"),
-        Command::Serve(sub) => serve(sub),
-    }
-    .await?;
+        Command::Connect(sub) => connect(sub).await,
+        Command::Serve(sub) => serve(sub).await,
+    }?;
 
+    Ok(())
+}
+
+async fn connect(args: Connect) -> Result<()> {
+    let dirs = directories::ProjectDirs::from("xxx", "fau", "qpiped").unwrap();
+    let path = dirs.data_local_dir();
+    let (cert, _key) = qpipe::certs::server(path, &["localhost"])?;
+    qpipe::client::run(args.target, &cert).await?;
     Ok(())
 }
 

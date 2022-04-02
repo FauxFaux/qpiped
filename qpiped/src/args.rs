@@ -18,10 +18,12 @@ pub enum Command {
 pub struct Issue {}
 
 #[derive(Args)]
-pub struct Connect {}
+pub struct Connect {
+    pub target: String,
+}
 
 #[derive(Args)]
 pub struct Serve {
-    #[clap(default_value = "[::]:6010")]
+    #[clap(default_value = "[::]:60010")]
     pub bind_address: String,
 }

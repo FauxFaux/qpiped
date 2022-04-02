@@ -1,0 +1,13 @@
+[package]
+name = "qpiped"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "3", features = ["derive"] }
+directories = "4"
+env_logger = "0.9"
+tokio = { version = "1", features = ["rt", "time", "macros", "rt-multi-thread"] }
+
+qpipe = { path = "../qpipe" }

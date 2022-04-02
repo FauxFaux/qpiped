@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use crate::frame::HeaderHeader;
 use anyhow::Result;
 use futures_util::stream::StreamExt;
 use futures_util::AsyncWriteExt;
@@ -78,14 +79,24 @@ pub fn alpn_protocols() -> Vec<Vec<u8>> {
 }
 
 async fn handle_stream((mut send, mut recv): (quinn::SendStream, quinn::RecvStream)) -> Result<()> {
-    info!("server stream open");
-    send.write_all(b"yo").await?;
-    send.flush().await?;
+    let req = HeaderHeader::from(&mut recv).await?;
+    match &req.four_cc {
+        b"ping" => {
+            let mut buf = [0u8; 8];
+            recv.read_exact(&mut buf).await?;
+            HeaderHeader::pong().write_all(&mut send).await?;
+            send.write_all(&buf).await?;
+        }
+        _ => {
+            let msg = "unrecognised frame";
+            HeaderHeader::error(msg).write_all(&mut send).await?;
+            send.write_all(&1u32.to_le_bytes()).await?;
+            send.write_all(&[1u8]).await?;
+            send.write_all(msg.as_bytes()).await?;
+        }
+    }
     send.finish().await?;
 
-    let mut buf = [0u8; 4];
-    recv.read_exact(&mut buf).await?;
-    info!("hello from client: {:?}", buf);
     info!("closed?");
     Ok(())
 }

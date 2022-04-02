@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
+use crate::frame::HeaderHeader;
 use anyhow::{anyhow, bail, Context, Result};
 use futures_util::AsyncWriteExt;
 use log::{info, warn};
@@ -43,16 +44,15 @@ pub async fn run(target: impl Debug + ToSocketAddrs, server_cert: &Certificate) 
 
     let (mut send, mut recv) = conn.open_bi().await?;
     info!("client stream open");
-    let mut hello = [0u8; 2];
 
-    // appears the server doesn't actually handle our connection until we speak on it
-    send.write_all(b"hey cutie").await?;
-    send.flush().await?;
+    HeaderHeader::ping().write_all(&mut send).await?;
+    send.write_all(&17u64.to_le_bytes()).await?;
 
-    recv.read_exact(&mut hello).await?;
-    info!("client recv: {:?}", hello);
-
-    send.finish().await?;
+    let resp = HeaderHeader::from(&mut recv).await?;
+    info!("resp: {:?}", resp);
+    let mut buf = [0u8; 8];
+    recv.read_exact(&mut buf).await?;
+    info!("pong body: {}", u64::from_le_bytes(buf));
 
     Ok(())
 }

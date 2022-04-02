@@ -4,10 +4,9 @@ use std::{fs, io};
 
 use anyhow::{anyhow, bail, Context, Result};
 
-pub fn server(
-    state_dir: impl AsRef<Path>,
-    names: &[&str],
-) -> Result<(rustls::Certificate, rustls::PrivateKey)> {
+type KeyPair = (rustls::Certificate, rustls::PrivateKey);
+
+pub fn server(state_dir: impl AsRef<Path>, names: &[&str]) -> Result<KeyPair> {
     let path = state_dir.as_ref();
     fs::create_dir_all(&path)
         .with_context(|| anyhow!("failed to create state directory {:?}", path))?;
@@ -28,6 +27,29 @@ pub fn server(
     let key = rustls::PrivateKey(key);
     let cert = rustls::Certificate(cert);
     Ok((cert, key))
+}
+
+pub fn mint_client(
+    ca_key: &rustls::PrivateKey,
+) -> Result<(rustls::Certificate, rustls::PrivateKey)> {
+    let client = rcgen::generate_simple_self_signed(&[])?;
+    let mut ca_builder = rcgen::CertificateParams::new(&[]);
+    ca_builder.key_pair = Some(rcgen::KeyPair::from_der(&ca_key.0)?);
+    let ca = rcgen::Certificate::from_params(ca_builder)?;
+
+    let key = client.serialize_private_key_der();
+    let cert = client.serialize_der_with_signer(&ca)?;
+    let key = rustls::PrivateKey(key);
+    let cert = rustls::Certificate(cert);
+    Ok((cert, key))
+}
+
+#[test]
+fn test_gen_client() -> Result<()> {
+    let state_dir = tempfile::tempdir()?;
+    let (_ca_cert, ca_key) = server(state_dir, &["localhost"])?;
+    let _ = mint_client(&ca_key)?;
+    Ok(())
 }
 
 fn generate_certs(cert_path: &Path, key_path: &Path, names: &[&str]) -> Result<(Vec<u8>, Vec<u8>)> {

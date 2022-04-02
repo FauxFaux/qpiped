@@ -39,6 +39,15 @@
 // token: u64
 // [unspecified]
 
+// 'scrt' - server cert
+// cert bytes as der
+
+// 'ccrt' - client cert
+// cert bytes as der
+
+// 'ckey' - client key
+// key bytes as der
+
 // 'xt??' (anything starting with 'xt')
 // [unspecified]
 
@@ -48,7 +57,7 @@ use std::fmt;
 
 pub type FourCc = [u8; 4];
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct HeaderHeader {
     pub four_cc: FourCc,
     pub data_len: u16,
@@ -79,6 +88,13 @@ impl HeaderHeader {
         Ok(())
     }
 
+    pub fn finished() -> Self {
+        HeaderHeader {
+            four_cc: *b"fini",
+            data_len: 0,
+        }
+    }
+
     pub fn ping() -> Self {
         HeaderHeader {
             four_cc: *b"ping",
@@ -98,6 +114,23 @@ impl HeaderHeader {
             data_len: 4 + 1 + u16::try_from(msg.len()).expect("static messages are fixed length"),
         }
     }
+}
+
+#[tokio::test]
+async fn test_header_header() {
+    use futures_util::io;
+
+    let mut buf = Vec::new();
+    let start = HeaderHeader {
+        four_cc: *b"abcd",
+        data_len: 259,
+    };
+    start.write_all(&mut buf).await.expect("infalliable / test");
+    let end = HeaderHeader::from(io::Cursor::new(buf.as_slice()))
+        .await
+        .expect("test");
+
+    assert_eq!(start, end);
 }
 
 impl fmt::Debug for HeaderHeader {

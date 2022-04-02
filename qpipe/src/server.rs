@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::frame::HeaderHeader;
 use anyhow::Result;
 use futures_util::stream::StreamExt;
-use futures_util::AsyncWriteExt;
 use log::{error, info};
 use rustls::{Certificate, PrivateKey};
 
@@ -20,8 +19,6 @@ pub async fn run(certs: Certs, addr: SocketAddr) -> Result<()> {
         .with_no_client_auth()
         .with_single_cert(certs.server_chain, certs.server_key)?;
 
-    // apparently this is the supported .. draft version?
-    // https://github.com/quinn-rs/quinn/blob/6fc46aefc65aeb3dd2d059ea6aabaf7a6c2f5bdb/quinn/examples/common/mod.rs#L69
     server_crypto.alpn_protocols = alpn_protocols();
 
     let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(server_crypto));
@@ -74,6 +71,8 @@ async fn handle_connection(conn: quinn::Connecting) -> Result<()> {
     Ok(())
 }
 
+// apparently this is the supported .. draft version?
+// https://github.com/quinn-rs/quinn/blob/6fc46aefc65aeb3dd2d059ea6aabaf7a6c2f5bdb/quinn/examples/common/mod.rs#L69
 pub fn alpn_protocols() -> Vec<Vec<u8>> {
     vec![b"hq-29".to_vec()]
 }

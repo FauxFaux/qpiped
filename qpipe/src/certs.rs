@@ -12,7 +12,7 @@ pub fn server(
     fs::create_dir_all(&path)
         .with_context(|| anyhow!("failed to create state directory {:?}", path))?;
 
-    remove_access(&path)?;
+    remove_access(path)?;
 
     let cert_path = path.join("cert.der");
     let key_path = path.join("key.der");

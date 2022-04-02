@@ -45,7 +45,6 @@
 use anyhow::Result;
 use futures_util::{AsyncReadExt, AsyncWriteExt};
 use std::fmt;
-use std::fmt::Formatter;
 
 pub type FourCc = [u8; 4];
 

@@ -3,8 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
 use crate::frame::HeaderHeader;
-use anyhow::{anyhow, bail, Context, Result};
-use futures_util::AsyncWriteExt;
+use anyhow::{bail, Context, Result};
 use log::{info, warn};
 use rustls::Certificate;
 

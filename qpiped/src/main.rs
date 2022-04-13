@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn issue(args: Issue) -> Result<()> {
+async fn issue(_args: Issue) -> Result<()> {
     let dirs = directories::ProjectDirs::from("xxx", "fau", "qpiped").unwrap();
     let path = dirs.data_local_dir();
     let (ca_cert, ca_key) = qpipe::certs::server(path, &["localhost"])?;
@@ -60,8 +60,8 @@ async fn write_der(
 
 async fn connect(args: Connect) -> Result<()> {
     let package = env::var("PACKAGE").context("env var PACKAGE must contain a package")?;
-    let (server_cert, _, _) = read_package(&package).await?;
-    qpipe::client::run(args.target, &server_cert).await?;
+    let certs = read_package(&package).await?;
+    qpipe::client::run(args.target, &certs).await?;
     Ok(())
 }
 

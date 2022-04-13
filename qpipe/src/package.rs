@@ -1,11 +1,16 @@
 use anyhow::{anyhow, bail, ensure, Result};
 use futures_util::AsyncReadExt;
+use rustls::{Certificate, PrivateKey};
 
 use crate::frame::HeaderHeader;
 
-pub async fn read_package(
-    package: &str,
-) -> Result<(rustls::Certificate, rustls::Certificate, rustls::PrivateKey)> {
+pub struct ClientCerts {
+    pub server_cert: Certificate,
+    pub client_cert: Certificate,
+    pub client_key: PrivateKey,
+}
+
+pub async fn read_package(package: &str) -> Result<ClientCerts> {
     let package_magic = "qpipe1:";
     ensure!(
         package.starts_with(package_magic),
@@ -27,13 +32,14 @@ pub async fn read_package(
             b"ccrt" => client_cert = Some(rustls::Certificate(buf)),
             b"ckey" => client_key = Some(rustls::PrivateKey(buf)),
             b"fini" => break,
+            // TODO: some kind of extension mechanism here
             _ => bail!("unexpected packet in package: {:?}", hh),
         }
     }
 
-    Ok((
-        server_cert.ok_or_else(|| anyhow!("missing server_cert in package"))?,
-        client_cert.ok_or_else(|| anyhow!("missing client_cert in package"))?,
-        client_key.ok_or_else(|| anyhow!("missing client_key in package"))?,
-    ))
+    Ok(ClientCerts {
+        server_cert: server_cert.ok_or_else(|| anyhow!("missing server_cert in package"))?,
+        client_cert: client_cert.ok_or_else(|| anyhow!("missing client_cert in package"))?,
+        client_key: client_key.ok_or_else(|| anyhow!("missing client_key in package"))?,
+    })
 }

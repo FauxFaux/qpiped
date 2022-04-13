@@ -32,7 +32,7 @@ pub fn server(state_dir: impl AsRef<Path>, names: &[&str]) -> Result<KeyPair> {
 pub fn mint_client(
     ca_key: &rustls::PrivateKey,
 ) -> Result<(rustls::Certificate, rustls::PrivateKey)> {
-    let client = rcgen::generate_simple_self_signed(&[])?;
+    let client = rcgen::generate_simple_self_signed(vec!["client".to_string()])?;
     let mut ca_builder = rcgen::CertificateParams::new(&[]);
     ca_builder.key_pair = Some(rcgen::KeyPair::from_der(&ca_key.0)?);
     let ca = rcgen::Certificate::from_params(ca_builder)?;

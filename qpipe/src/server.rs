@@ -5,7 +5,8 @@ use crate::frame::HeaderHeader;
 use anyhow::Result;
 use futures_util::stream::StreamExt;
 use log::{error, info};
-use rustls::{Certificate, PrivateKey};
+use rustls::server::AllowAnyAuthenticatedClient;
+use rustls::{Certificate, PrivateKey, RootCertStore};
 
 pub struct Certs {
     pub server_key: PrivateKey,
@@ -13,10 +14,13 @@ pub struct Certs {
 }
 
 pub async fn run(certs: Certs, addr: SocketAddr) -> Result<()> {
+    let mut root = RootCertStore::empty();
+    for cert in &certs.server_chain {
+        root.add(cert)?;
+    }
     let mut server_crypto = rustls::ServerConfig::builder()
         .with_safe_defaults()
-        // TODO: opposite of final intention
-        .with_no_client_auth()
+        .with_client_cert_verifier(AllowAnyAuthenticatedClient::new(root))
         .with_single_cert(certs.server_chain, certs.server_key)?;
 
     server_crypto.alpn_protocols = alpn_protocols();

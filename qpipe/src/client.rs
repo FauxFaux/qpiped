@@ -5,24 +5,24 @@ use std::sync::Arc;
 use crate::frame::HeaderHeader;
 use anyhow::{bail, Context, Result};
 use log::{info, warn};
-use rustls::Certificate;
 
+use super::package::ClientCerts;
 use super::server::alpn_protocols;
 
-pub async fn run(target: impl Debug + ToSocketAddrs, server_cert: &Certificate) -> Result<()> {
+pub async fn run(target: impl Debug + ToSocketAddrs, certs: &ClientCerts) -> Result<()> {
     let targets: Vec<SocketAddr> = target.to_socket_addrs()?.collect();
     if targets.is_empty() {
         bail!("{:?} resolved to nowhere", target);
     }
 
     let mut roots = rustls::RootCertStore::empty();
-    roots.add(server_cert)?;
+    roots.add(&certs.server_cert)?;
 
     let mut client_crypto = rustls::ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(roots)
-        // TODO: opposite of final intention
-        .with_no_client_auth();
+        .with_single_cert(vec![certs.client_cert.clone()], certs.client_key.clone())?;
+    // .with_client_cert_resolver(Arc::clone(&certs) as Arc<dyn ResolvesClientCert>);
 
     client_crypto.alpn_protocols = alpn_protocols();
 

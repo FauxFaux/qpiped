@@ -22,7 +22,6 @@ pub async fn run(target: impl Debug + ToSocketAddrs, certs: &ClientCerts) -> Res
         .with_safe_defaults()
         .with_root_certificates(roots)
         .with_single_cert(vec![certs.client_cert.clone()], certs.client_key.clone())?;
-    // .with_client_cert_resolver(Arc::clone(&certs) as Arc<dyn ResolvesClientCert>);
 
     client_crypto.alpn_protocols = alpn_protocols();
 

@@ -114,6 +114,13 @@ impl HeaderHeader {
             data_len: 4 + 1 + u16::try_from(msg.len()).expect("static messages are fixed length"),
         }
     }
+
+    pub fn data(len: usize) -> Self {
+        HeaderHeader {
+            four_cc: *b"data",
+            data_len: u16::try_from(len).expect("long data len unsupported"),
+        }
+    }
 }
 
 #[tokio::test]

@@ -10,6 +10,6 @@ clap = { version = "3", features = ["derive"] }
 directories = "4"
 env_logger = "0.9"
 futures-util = "0.3"
-tokio = { version = "1", features = ["rt", "time", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["rt", "time", "macros", "rt-multi-thread", "io-util"] }
 
 qpipe = { path = "../qpipe" }

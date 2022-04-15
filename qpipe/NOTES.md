@@ -16,3 +16,7 @@ know this.
 An attacker with full access to the ssh session, or some other access
 to  the issuer, can already auth themselves, and likely control the
 server process.
+
+Look, the client private key isn't used for session establishment in
+client-private-key-less key exchanges, surely they wouldn't have
+made it worse. Surely.

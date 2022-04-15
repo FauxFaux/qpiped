@@ -51,9 +51,9 @@
 // 'xt??' (anything starting with 'xt')
 // [unspecified]
 
-use anyhow::Result;
-use futures_util::{AsyncReadExt, AsyncWriteExt};
+use anyhow::{bail, Result};
 use std::fmt;
+use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub type FourCc = [u8; 4];
 
@@ -125,7 +125,7 @@ impl HeaderHeader {
 
 #[tokio::test]
 async fn test_header_header() {
-    use futures_util::io;
+    use std::io;
 
     let mut buf = Vec::new();
     let start = HeaderHeader {
@@ -149,4 +149,60 @@ impl fmt::Debug for HeaderHeader {
             self.data_len
         )
     }
+}
+
+pub async fn copy_framing(
+    mut from_plain: impl AsyncReadExt + Unpin,
+    mut to_framed: impl AsyncWrite + AsyncWriteExt + Unpin,
+) -> Result<()> {
+    // small buffer here; we need the whole frame to arrive at the other end before processing it,
+    // and a smaller packet is more likely to arrive. We aren't flushing (maybe we should be flushing),
+    // so the overhead of the small packet is very low; especially as (I assume) both read() and
+    // write() here are heavily buffered. Intentionally, but potentially naively, ignoring the
+    // underlying framing here; we've told it we're a stream transport, and we're building on top
+    // of that stream, regardless of how it is implemented.
+    let mut buf = [0u8; 256];
+
+    loop {
+        let found = from_plain.read(&mut buf).await?;
+        let buf = &buf[..found];
+        if buf.is_empty() {
+            break;
+        }
+        HeaderHeader::data(buf.len())
+            .write_all(&mut to_framed)
+            .await?;
+        to_framed.write_all(buf).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn copy_unframing(
+    mut from_framed: impl AsyncReadExt + Unpin,
+    mut to_plain: impl AsyncWriteExt + Unpin,
+) -> Result<()> {
+    // arbitrary limit on the server; didn't fancy having a 65kB buffer here per connection,
+    // seems excessive. Could have an auto-resizing Buf?
+    let mut buf = [0u8; 8096];
+
+    loop {
+        let hh = HeaderHeader::from(&mut from_framed).await?;
+        match &hh.four_cc {
+            b"data" => (),
+            b"fini" => break,
+            _ => bail!("unsupported frame on established connection: {:?}", hh),
+        };
+
+        if usize::from(hh.data_len) > buf.len() {
+            bail!("overlong data packet: {}", hh.data_len)
+        }
+
+        let buf = &mut buf[..usize::from(hh.data_len)];
+
+        from_framed.read_exact(buf).await?;
+        to_plain.write_all(buf).await?;
+    }
+
+    Ok(())
 }

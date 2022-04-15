@@ -4,10 +4,10 @@ use std::env;
 use std::net::ToSocketAddrs;
 
 use anyhow::{bail, Context, Result};
-use futures_util::AsyncWriteExt;
 use qpipe::frame::{FourCc, HeaderHeader};
 use qpipe::package::read_package;
 use qpipe::server::Certs;
+use tokio::io::AsyncWriteExt;
 
 use crate::args::{Command, Connect, Issue, Serve};
 

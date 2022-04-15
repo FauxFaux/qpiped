@@ -6,10 +6,11 @@ use crate::frame::HeaderHeader;
 use anyhow::{bail, Context, Error, Result};
 use log::{error, warn};
 use quinn::Connection;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::try_join;
 
+use super::frame::{copy_framing, copy_unframing};
 use super::package::ClientCerts;
 use super::server::alpn_protocols;
 
@@ -68,12 +69,12 @@ pub async fn run(target: impl Debug + ToSocketAddrs, certs: &ClientCerts) -> Res
     // info!("pong body: {}", u64::from_le_bytes(buf));
 }
 
-async fn handle_proxy_connection(client: TcpStream, conn: Connection) -> Result<()> {
-    let (mut read, mut write) = client.into_split();
-    let (mut send, mut recv) = conn.open_bi().await?;
+async fn handle_proxy_connection(plain: TcpStream, framed: Connection) -> Result<()> {
+    let (mut plain_from, mut plain_to) = plain.into_split();
+    let (mut framed_to, mut framed_from) = framed.open_bi().await?;
 
-    send.write_all(b"TODO: establish").await?;
-    let resp = HeaderHeader::from(&mut recv).await?;
+    framed_to.write_all(b"TODO: establish").await?;
+    let resp = HeaderHeader::from(&mut framed_from).await?;
     match &resp.four_cc {
         b"okay" => (),
         _ => bail!("unexpected response {:?}", resp),
@@ -82,45 +83,15 @@ async fn handle_proxy_connection(client: TcpStream, conn: Connection) -> Result<
 
     try_join!(
         async {
-            let mut buf = [0u8; 4096];
-            loop {
-                let found = read.read(&mut buf).await?;
-                let buf = &buf[..found];
-                if buf.is_empty() {
-                    break;
-                }
-                HeaderHeader::data(buf.len()).write_all(&mut send).await?;
-                send.write_all(buf).await?;
-            }
-
-            HeaderHeader::finished().write_all(&mut send).await?;
-            send.finish().await?;
-
+            copy_framing(&mut plain_from, &mut framed_to).await?;
+            HeaderHeader::finished().write_all(&mut framed_to).await?;
+            framed_to.shutdown().await?;
             Ok::<_, Error>(())
         },
         async {
-            let mut buf = [0u8; 8096];
-            loop {
-                let hh = HeaderHeader::from(&mut recv).await?;
-                match &hh.four_cc {
-                    b"data" => (),
-                    b"fini" => break,
-                    _ => bail!("unsupported frame on established connection: {:?}", hh),
-                };
-
-                if usize::from(hh.data_len) > buf.len() {
-                    bail!("overlong data packet: {}", hh.data_len)
-                }
-
-                let buf = &mut buf[..usize::from(hh.data_len)];
-
-                recv.read_exact(buf).await?;
-                write.write_all(buf).await?;
-            }
-
-            write.shutdown().await?;
-
-            Ok::<_, Error>(())
+            let res = copy_unframing(&mut framed_from, &mut plain_to).await;
+            plain_to.shutdown().await?;
+            res
         }
     )?;
 

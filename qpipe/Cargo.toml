@@ -11,7 +11,7 @@ log = "0.4"
 quinn = "0.8"
 rcgen = "0.9"
 rustls = "0.20"
-tokio = { version = "1", features = ["rt", "time"] }
+tokio = { version = "1", features = ["rt", "time", "macros", "io-util"] }
 
 [dev-dependencies]
 tempfile = "3"

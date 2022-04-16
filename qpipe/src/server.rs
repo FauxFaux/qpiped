@@ -1,12 +1,14 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::frame::HeaderHeader;
 use anyhow::Result;
 use futures_util::stream::StreamExt;
 use log::{error, info};
 use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::{Certificate, PrivateKey, RootCertStore};
+
+use super::frame::HeaderHeader;
+use super::wire;
 
 pub struct Certs {
     pub server_key: PrivateKey,
@@ -90,13 +92,7 @@ async fn handle_stream((mut send, mut recv): (quinn::SendStream, quinn::RecvStre
             HeaderHeader::pong().write_all(&mut send).await?;
             send.write_all(&buf).await?;
         }
-        _ => {
-            let msg = "unrecognised frame";
-            HeaderHeader::error(msg).write_all(&mut send).await?;
-            send.write_all(&1u32.to_le_bytes()).await?;
-            send.write_all(&[1u8]).await?;
-            send.write_all(msg.as_bytes()).await?;
-        }
+        _ => wire::write_error(&mut send, 1, "unrecognised frame").await?,
     }
     send.finish().await?;
 

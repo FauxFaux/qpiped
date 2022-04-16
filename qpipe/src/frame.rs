@@ -53,7 +53,9 @@
 
 use anyhow::{bail, Result};
 use std::fmt;
-use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+use crate::wire;
 
 pub type FourCc = [u8; 4];
 
@@ -108,10 +110,10 @@ impl HeaderHeader {
         }
     }
 
-    pub fn error(msg: &'static str) -> Self {
+    pub fn error(string_length: u8) -> Self {
         HeaderHeader {
             four_cc: *b"errm",
-            data_len: 4 + 1 + u16::try_from(msg.len()).expect("static messages are fixed length"),
+            data_len: 4 + 1 + u16::from(string_length),
         }
     }
 
@@ -153,7 +155,7 @@ impl fmt::Debug for HeaderHeader {
 
 pub async fn copy_framing(
     mut from_plain: impl AsyncReadExt + Unpin,
-    mut to_framed: impl AsyncWrite + AsyncWriteExt + Unpin,
+    mut to_framed: impl AsyncWriteExt + Unpin,
 ) -> Result<()> {
     // small buffer here; we need the whole frame to arrive at the other end before processing it,
     // and a smaller packet is more likely to arrive. We aren't flushing (maybe we should be flushing),
@@ -169,10 +171,8 @@ pub async fn copy_framing(
         if buf.is_empty() {
             break;
         }
-        HeaderHeader::data(buf.len())
-            .write_all(&mut to_framed)
-            .await?;
-        to_framed.write_all(buf).await?;
+
+        wire::write_data(&mut to_framed, buf).await?;
     }
 
     Ok(())

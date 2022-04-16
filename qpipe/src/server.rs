@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures_util::stream::StreamExt;
-use log::{error, info};
+use log::{error, info, warn};
 use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::{Certificate, PrivateKey, RootCertStore};
 
 use super::frame::HeaderHeader;
 use super::wire;
+
 
 pub struct Certs {
     pub server_key: PrivateKey,
@@ -84,16 +85,39 @@ pub fn alpn_protocols() -> Vec<Vec<u8>> {
 }
 
 async fn handle_stream((mut send, mut recv): (quinn::SendStream, quinn::RecvStream)) -> Result<()> {
-    let req = HeaderHeader::from(&mut recv).await?;
-    match &req.four_cc {
-        b"ping" => {
-            let mut buf = [0u8; 8];
-            recv.read_exact(&mut buf).await?;
-            HeaderHeader::pong().write_all(&mut send).await?;
-            send.write_all(&buf).await?;
+    let mut buf = vec![0u8; usize::from(u16::MAX)];
+
+    loop {
+        let req = HeaderHeader::from(&mut recv).await?;
+        let buf = &mut buf[..usize::from(req.data_len)];
+        recv.read_exact(buf).await?;
+
+        match &req.four_cc {
+            b"ping" => {
+                let mut buf = [0u8; 8];
+                recv.read_exact(&mut buf).await?;
+                HeaderHeader::pong().write_all(&mut send).await?;
+                send.write_all(&buf).await?;
+            }
+            b"con1" => {
+                println!("{:?}", wire::parse_establish(buf)?);
+                HeaderHeader::empty(*b"okay").write_all(&mut send).await?;
+            }
+            b"fini" => break,
+            _ => {
+                warn!(
+                    "unsupported client request: {:?}, {:?}...",
+                    req,
+                    String::from_utf8_lossy(buf)
+                        .chars()
+                        .take(30)
+                        .collect::<String>()
+                );
+                wire::write_error(&mut send, 1, "unrecognised frame").await?
+            }
         }
-        _ => wire::write_error(&mut send, 1, "unrecognised frame").await?,
     }
+
     send.finish().await?;
 
     info!("closed?");

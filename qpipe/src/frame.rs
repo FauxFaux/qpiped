@@ -90,6 +90,13 @@ impl HeaderHeader {
         Ok(())
     }
 
+    pub fn empty(four_cc: FourCc) -> Self {
+        HeaderHeader {
+            four_cc,
+            data_len: 0,
+        }
+    }
+
     pub fn finished() -> Self {
         HeaderHeader {
             four_cc: *b"fini",

@@ -3,6 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
 use crate::frame::HeaderHeader;
+use crate::wire::Establish;
 use anyhow::{bail, Context, Error, Result};
 use log::{error, warn};
 use quinn::Connection;
@@ -13,6 +14,7 @@ use tokio::try_join;
 use super::frame::{copy_framing, copy_unframing};
 use super::package::ClientCerts;
 use super::server::alpn_protocols;
+use super::wire;
 
 pub async fn run(target: impl Debug + ToSocketAddrs, certs: &ClientCerts) -> Result<()> {
     let targets: Vec<SocketAddr> = target.to_socket_addrs()?.collect();
@@ -73,13 +75,17 @@ async fn handle_proxy_connection(plain: TcpStream, framed: Connection) -> Result
     let (mut plain_from, mut plain_to) = plain.into_split();
     let (mut framed_to, mut framed_from) = framed.open_bi().await?;
 
-    framed_to.write_all(b"TODO: establish").await?;
-    let resp = HeaderHeader::from(&mut framed_from).await?;
-    match &resp.four_cc {
-        b"okay" => (),
-        _ => bail!("unexpected response {:?}", resp),
-    }
-    // TODO: consume body
+    wire::write_establish(
+        &mut framed_to,
+        &Establish {
+            protocol: b't',
+            port: 1337,
+            hostname: "todo".to_string(),
+        },
+    )
+    .await?;
+    // TODO: handle ping?
+    wire::read_okay(&mut framed_from).await?;
 
     try_join!(
         async {

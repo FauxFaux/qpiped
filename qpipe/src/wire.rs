@@ -31,18 +31,17 @@ pub async fn write_error(
 pub struct Establish {
     // `t`cp, `u`dp,
     pub protocol: u8,
-    pub port: u16,
     // max length: 255
-    pub hostname: String,
+    pub address_port: String,
 }
 
 pub async fn write_establish(
     mut writer: impl AsyncWriteExt + Unpin,
     establish: &Establish,
 ) -> Result<()> {
-    let hostname_len = u8::try_from(establish.hostname.len())
-        .context("hostname lengths must be under 255 bytes")?;
-    let data_len = 1 + 2 + 1 + u16::from(hostname_len);
+    let addr_len = u8::try_from(establish.address_port.len())
+        .context("address lengths must be under 255 bytes")?;
+    let data_len = 1 + 1 + u16::from(addr_len);
 
     HeaderHeader {
         four_cc: *b"con1",
@@ -53,28 +52,22 @@ pub async fn write_establish(
 
     // tcp/udp
     writer.write_all(&[establish.protocol]).await?;
-    writer.write_all(&establish.port.to_le_bytes()).await?;
-    writer.write_all(&[hostname_len]).await?;
-    writer.write_all(establish.hostname.as_bytes()).await?;
+    writer.write_all(&[addr_len]).await?;
+    writer.write_all(establish.address_port.as_bytes()).await?;
 
     Ok(())
 }
 
 pub fn parse_establish(buf: &[u8]) -> Result<Establish> {
-    let fixed_header_len = 1 + 2 + 1;
-    ensure!(buf.len() >= fixed_header_len, "impossibly short request");
-    let port = u16::from_le_bytes(buf[1..=2].try_into().expect("checked above"));
-    let name_length = usize::from(buf[3]);
-    ensure!(
-        buf.len() >= fixed_header_len + name_length,
-        "name doesn't fit in request"
-    );
-    let hostname =
-        String::from_utf8(buf[fixed_header_len..fixed_header_len + name_length].to_vec())?;
+    ensure!(buf.len() >= 2, "impossibly short request");
+    let protocol = buf[0];
+    let name_length = usize::from(buf[1]);
+    let buf = &buf[2..];
+    ensure!(buf.len() >= name_length, "name doesn't fit in request");
+    let address_port = String::from_utf8(buf[..name_length].to_vec())?;
     Ok(Establish {
-        protocol: buf[0],
-        port,
-        hostname,
+        protocol,
+        address_port,
     })
 }
 

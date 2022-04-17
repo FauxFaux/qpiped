@@ -1,15 +1,18 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, ensure, Result};
 use futures_util::stream::StreamExt;
 use log::{error, info, warn};
 use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::{Certificate, PrivateKey, RootCertStore};
+use tokio::net::{lookup_host, TcpSocket};
+use tokio::try_join;
 
+use super::frame::copy_framing;
+use super::frame::copy_unframing;
 use super::frame::HeaderHeader;
 use super::wire;
-
 
 pub struct Certs {
     pub server_key: PrivateKey,
@@ -84,26 +87,26 @@ pub fn alpn_protocols() -> Vec<Vec<u8>> {
     vec![b"hq-29".to_vec()]
 }
 
-async fn handle_stream((mut send, mut recv): (quinn::SendStream, quinn::RecvStream)) -> Result<()> {
+async fn handle_stream(
+    (mut framed_to, mut framed_from): (quinn::SendStream, quinn::RecvStream),
+) -> Result<()> {
     let mut buf = vec![0u8; usize::from(u16::MAX)];
 
-    loop {
-        let req = HeaderHeader::from(&mut recv).await?;
+    let establish = loop {
+        // read_frame?
+        let req = HeaderHeader::from(&mut framed_from).await?;
         let buf = &mut buf[..usize::from(req.data_len)];
-        recv.read_exact(buf).await?;
+        framed_from.read_exact(buf).await?;
 
+        // handle_common_or(b"con1", CloseOnError)?
         match &req.four_cc {
             b"ping" => {
-                let mut buf = [0u8; 8];
-                recv.read_exact(&mut buf).await?;
-                HeaderHeader::pong().write_all(&mut send).await?;
-                send.write_all(&buf).await?;
+                HeaderHeader::pong().write_all(&mut framed_to).await?;
+                framed_to.write_all(&buf).await?;
             }
             b"con1" => {
-                println!("{:?}", wire::parse_establish(buf)?);
-                HeaderHeader::empty(*b"okay").write_all(&mut send).await?;
+                break wire::parse_establish(buf)?;
             }
-            b"fini" => break,
             _ => {
                 warn!(
                     "unsupported client request: {:?}, {:?}...",
@@ -113,12 +116,42 @@ async fn handle_stream((mut send, mut recv): (quinn::SendStream, quinn::RecvStre
                         .take(30)
                         .collect::<String>()
                 );
-                wire::write_error(&mut send, 1, "unrecognised frame").await?
+                wire::write_error(&mut framed_to, 1, "unrecognised frame").await?
             }
         }
-    }
+    };
 
-    send.finish().await?;
+    ensure!(
+        establish.protocol == b't',
+        "only tcp is supported, not {:?}",
+        establish.protocol
+    );
+
+    // TODO: return these errors to the client cleanly?
+    let mut resolution = lookup_host(&establish.address_port).await?;
+    // TODO: try multiple addresses?
+    let picked = resolution
+        .next()
+        .ok_or_else(|| anyhow!("no resolution for {:?}", establish.address_port))?;
+    let plain = match picked.ip() {
+        IpAddr::V4(_) => TcpSocket::new_v4()?,
+        IpAddr::V6(_) => TcpSocket::new_v6()?,
+    }
+    .connect(picked)
+    .await?;
+
+    HeaderHeader::empty(*b"okay")
+        .write_all(&mut framed_to)
+        .await?;
+
+    let (mut plain_from, mut plain_to) = plain.into_split();
+
+    try_join!(
+        async { copy_framing(&mut plain_from, &mut framed_to).await },
+        async { copy_unframing(&mut framed_from, &mut plain_to).await }
+    )?;
+
+    framed_to.finish().await?;
 
     info!("closed?");
     Ok(())

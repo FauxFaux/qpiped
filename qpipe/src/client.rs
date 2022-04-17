@@ -79,8 +79,7 @@ async fn handle_proxy_connection(plain: TcpStream, framed: Connection) -> Result
         &mut framed_to,
         &Establish {
             protocol: b't',
-            port: 1337,
-            hostname: "todo".to_string(),
+            address_port: "localhost:1337".to_string(),
         },
     )
     .await?;

@@ -11,9 +11,8 @@
 
 // 'con1' - initiate connection
 // tcp/udp: 't' | 'u'
-// port: u16
-// hostname_len: u8
-// hostname: [u8; hostname_len]
+// address_port_len: u8
+// address_port: [u8; address_port_len] e.g. "example.com:80"
 // [unspecified]
 
 // 'okay'

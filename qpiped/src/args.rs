@@ -19,7 +19,11 @@ pub struct Issue {}
 
 #[derive(Args)]
 pub struct Connect {
-    pub target: String,
+    pub server: String,
+    #[clap(short, long, multiple_values = false, required = true)]
+    pub source: Vec<String>,
+    #[clap(short, long, multiple_values = false, required = true)]
+    pub target: Vec<String>,
 }
 
 #[derive(Args)]

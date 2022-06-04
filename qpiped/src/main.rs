@@ -61,7 +61,19 @@ async fn write_der(
 async fn connect(args: Connect) -> Result<()> {
     let package = env::var("PACKAGE").context("env var PACKAGE must contain a package")?;
     let certs = read_package(&package).await?;
-    qpipe::client::run(args.target, &certs).await?;
+    let mut mappings = Vec::new();
+    match (args.source.len(), args.target.len()) {
+        (1, 1) => mappings.push((args.source[0].to_string(), args.target[0].to_string())),
+        // (_, 1) => all sources mapped onto that target
+        // (1, _) => that sourc mapped onto all targets
+        // (a, a) => -s foo -t bar, -s quux -t baz? (foo -> bar, quux -> baz)
+        (_, _) => bail!(
+            "not implemented, more than one source or target: {:?} {:?}",
+            args.source,
+            args.target
+        ),
+    };
+    qpipe::client::run(args.server, &certs, &mappings).await?;
     Ok(())
 }
 

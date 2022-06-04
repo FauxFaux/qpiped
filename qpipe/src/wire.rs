@@ -27,7 +27,7 @@ pub async fn write_error(
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Establish {
     // `t`cp, `u`dp,
     pub protocol: u8,

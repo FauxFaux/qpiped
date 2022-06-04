@@ -1,10 +1,10 @@
-use std::fmt::Debug;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
 use crate::frame::HeaderHeader;
 use crate::wire::Establish;
 use anyhow::{bail, Context, Error, Result};
+use futures_util::future::try_join_all;
 use log::{error, warn};
 use quinn::Connection;
 use tokio::io::AsyncWriteExt;
@@ -16,7 +16,7 @@ use super::package::ClientCerts;
 use super::server::alpn_protocols;
 use super::wire;
 
-pub async fn run(target: impl Debug + ToSocketAddrs, certs: &ClientCerts) -> Result<()> {
+pub async fn run(target: String, certs: &ClientCerts, mappings: &[(String, String)]) -> Result<()> {
     let targets: Vec<SocketAddr> = target.to_socket_addrs()?.collect();
     if targets.is_empty() {
         bail!("{:?} resolved to nowhere", target);
@@ -47,42 +47,46 @@ pub async fn run(target: impl Debug + ToSocketAddrs, certs: &ClientCerts) -> Res
         connection: conn, ..
     } = new_conn;
 
-    let bind = TcpListener::bind("127.0.0.1:6699").await?;
+    let mut proxies = Vec::new();
+    for (source, target) in mappings {
+        for source in source.to_socket_addrs()? {
+            let establish = Establish {
+                protocol: b't',
+                address_port: target.to_string(),
+            };
+            proxies.push(tokio::spawn(spawn_proxies(conn.clone(), source, establish)));
+        }
+    }
+
+    try_join_all(proxies).await?;
+
+    Ok(())
+}
+
+async fn spawn_proxies(framed: Connection, source: SocketAddr, establish: Establish) -> Result<()> {
+    let bind = TcpListener::bind(source).await?;
 
     loop {
         let (client, addr) = bind.accept().await?;
-        let conn = conn.clone();
+        let framed = framed.clone();
+        let establish = establish.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle_proxy_connection(client, conn).await {
+            if let Err(e) = handle_proxy_connection(client, framed, &establish).await {
                 error!("processing connection from {:?}: {:?}", addr, e);
             }
         });
     }
-
-    // info!("client stream open");
-    //
-    // HeaderHeader::ping().write_all(&mut send).await?;
-    // send.write_all(&17u64.to_le_bytes()).await?;
-    //
-    // let resp = HeaderHeader::from(&mut recv).await?;
-    // info!("resp: {:?}", resp);
-    // let mut buf = [0u8; 8];
-    // recv.read_exact(&mut buf).await?;
-    // info!("pong body: {}", u64::from_le_bytes(buf));
 }
 
-async fn handle_proxy_connection(plain: TcpStream, framed: Connection) -> Result<()> {
+async fn handle_proxy_connection(
+    plain: TcpStream,
+    framed: Connection,
+    establish: &Establish,
+) -> Result<()> {
     let (mut plain_from, mut plain_to) = plain.into_split();
     let (mut framed_to, mut framed_from) = framed.open_bi().await?;
 
-    wire::write_establish(
-        &mut framed_to,
-        &Establish {
-            protocol: b't',
-            address_port: "localhost:1337".to_string(),
-        },
-    )
-    .await?;
+    wire::write_establish(&mut framed_to, establish).await?;
     // TODO: handle ping?
     wire::read_okay(&mut framed_from).await?;
 

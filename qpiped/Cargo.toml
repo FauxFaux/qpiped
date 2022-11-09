@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 base64 = "0.13"
-clap = { version = "3", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 directories = "4"
 env_logger = "0.9"
 futures-util = "0.3"

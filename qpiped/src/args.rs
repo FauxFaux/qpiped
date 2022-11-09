@@ -20,9 +20,9 @@ pub struct Issue {}
 #[derive(Args)]
 pub struct Connect {
     pub server: String,
-    #[clap(short, long, multiple_values = false, required = true)]
+    #[clap(short, long, num_args = 1, required = true)]
     pub source: Vec<String>,
-    #[clap(short, long, multiple_values = false, required = true)]
+    #[clap(short, long, num_args = 1, required = true)]
     pub target: Vec<String>,
 }
 

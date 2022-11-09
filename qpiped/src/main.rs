@@ -4,12 +4,13 @@ use std::env;
 use std::net::ToSocketAddrs;
 
 use anyhow::{bail, Context, Result};
+use qpipe::certs::generate_client_certs;
 use qpipe::frame::{FourCc, HeaderHeader};
 use qpipe::package::read_package;
 use qpipe::server::Certs;
 use tokio::io::AsyncWriteExt;
 
-use crate::args::{Command, Connect, Issue, Serve};
+use crate::args::{Command, Connect, GenClient, Issue, Serve};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,6 +20,7 @@ async fn main() -> Result<()> {
     let args: args::Cli = args::Cli::parse();
 
     match args.command {
+        Command::GenClient(sub) => gen(sub).await,
         Command::Issue(sub) => issue(sub).await,
         Command::Connect(sub) => connect(sub).await,
         Command::Serve(sub) => serve(sub).await,
@@ -27,17 +29,21 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn issue(_args: Issue) -> Result<()> {
+async fn gen(_args: GenClient) -> Result<()> {
+    let (csr, keys) = generate_client_certs()?;
+    Ok(())
+}
+
+async fn issue(args: Issue) -> Result<()> {
     let dirs = directories::ProjectDirs::from("xxx", "fau", "qpiped").unwrap();
     let path = dirs.data_local_dir();
     let (ca_cert, ca_key) = qpipe::certs::server(path, &["localhost"])?;
-    let (client_cert, client_key) = qpipe::certs::mint_client(&ca_key)?;
+    let client_cert = qpipe::certs::mint_client(&ca_key, &qpipe::certs::parse_client(&args.csr)?)?;
     drop(ca_key);
 
     let mut buf = Vec::new();
     write_der(&mut buf, *b"scrt", &ca_cert.0).await?;
     write_der(&mut buf, *b"ccrt", &client_cert.0).await?;
-    write_der(&mut buf, *b"ckey", &client_key.0).await?;
     HeaderHeader::finished().write_all(&mut buf).await?;
     println!("qpipe1:{}", base64::encode(buf));
     Ok(())

@@ -9,13 +9,20 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
     Issue(Issue),
+
+    GenClient(GenClient),
     Connect(Connect),
 
     Serve(Serve),
 }
 
 #[derive(Args)]
-pub struct Issue {}
+pub struct GenClient {}
+
+#[derive(Args)]
+pub struct Issue {
+    pub csr: Vec<u8>,
+}
 
 #[derive(Args)]
 pub struct Connect {

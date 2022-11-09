@@ -2,7 +2,11 @@ use std::fs::Permissions;
 use std::path::Path;
 use std::{fs, io};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
+use rcgen::{
+    BasicConstraints, Certificate, CertificateParams, CertificateSigningRequest, DistinguishedName,
+    DnType, ExtendedKeyUsagePurpose, IsCa, KeyUsagePurpose,
+};
 
 type KeyPair = (rustls::Certificate, rustls::PrivateKey);
 
@@ -19,7 +23,7 @@ pub fn server(state_dir: impl AsRef<Path>, names: &[&str]) -> Result<KeyPair> {
     let (cert, key) = match fs::read(&cert_path) {
         Ok(cert) => (cert, fs::read(key_path)?),
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-            generate_certs(&cert_path, &key_path, names)?
+            generate_server_certs(&cert_path, &key_path, names)?
         }
         Err(e) => bail!("failed to read cert from {:?}: {:?}", cert_path, e),
     };
@@ -29,33 +33,58 @@ pub fn server(state_dir: impl AsRef<Path>, names: &[&str]) -> Result<KeyPair> {
     Ok((cert, key))
 }
 
+pub fn parse_client(buf: &[u8]) -> Result<CertificateSigningRequest> {
+    Ok(CertificateSigningRequest::from_der(buf)?)
+}
+
 pub fn mint_client(
     ca_key: &rustls::PrivateKey,
-) -> Result<(rustls::Certificate, rustls::PrivateKey)> {
-    let client = rcgen::generate_simple_self_signed(vec!["client".to_string()])?;
+    client_csr: &CertificateSigningRequest,
+) -> Result<rustls::Certificate> {
+    // ensure!(client_csr.params.is_ca == IsCa::ExplicitNoCa, "{:?} should be ExplicitNoCa", client_csr.params.is_ca);
     let mut ca_builder = rcgen::CertificateParams::new([]);
     ca_builder.key_pair = Some(rcgen::KeyPair::from_der(&ca_key.0)?);
     let ca = rcgen::Certificate::from_params(ca_builder)?;
-
-    let key = client.serialize_private_key_der();
-    let cert = client.serialize_der_with_signer(&ca)?;
-    let key = rustls::PrivateKey(key);
-    let cert = rustls::Certificate(cert);
-    Ok((cert, key))
+    let cert = client_csr.serialize_der_with_signer(&ca)?;
+    Ok(rustls::Certificate(cert))
 }
 
 #[test]
 fn test_gen_client() -> Result<()> {
     let state_dir = tempfile::tempdir()?;
     let (_ca_cert, ca_key) = server(state_dir, &["localhost"])?;
-    let _ = mint_client(&ca_key)?;
+    let (csr, client_keys) = generate_client_certs()?;
+    let client_cert = mint_client(&ca_key, &parse_client(&csr)?)?;
     Ok(())
 }
 
-fn generate_certs(cert_path: &Path, key_path: &Path, names: &[&str]) -> Result<(Vec<u8>, Vec<u8>)> {
-    let cert = rcgen::generate_simple_self_signed(
-        names.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
-    )?;
+// TODO: well this isn't the worst security nightmare of a return type ever
+/// @return (csr, private_key_pair)
+pub fn generate_client_certs() -> Result<(Vec<u8>, Vec<u8>)> {
+    let mut params = CertificateParams::new(vec!["client".to_string()]);
+    params.is_ca = IsCa::ExplicitNoCa;
+    let client = Certificate::from_params(params)?;
+    let req = client.serialize_request_der()?;
+    Ok((req, client.get_key_pair().serialize_der()))
+}
+
+fn generate_server_certs(
+    cert_path: &Path,
+    key_path: &Path,
+    names: &[&str],
+) -> Result<(Vec<u8>, Vec<u8>)> {
+    let mut params =
+        rcgen::CertificateParams::new(names.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+    params.distinguished_name = DistinguishedName::new();
+    params
+        .distinguished_name
+        .push(DnType::CommonName, "qpiped server");
+    params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
+    use KeyUsagePurpose::*;
+    params.key_usages = vec![KeyCertSign, CrlSign, DigitalSignature];
+    use ExtendedKeyUsagePurpose::*;
+    params.extended_key_usages = vec![ServerAuth];
+    let cert = Certificate::from_params(params)?;
     let key = cert.serialize_private_key_der();
     let cert = cert.serialize_der()?;
     fs::write(&cert_path, &cert)

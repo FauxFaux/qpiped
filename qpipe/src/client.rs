@@ -42,10 +42,7 @@ pub async fn run(target: String, certs: &ClientCerts, mappings: &[(String, Strin
     if 1 != targets.len() {
         warn!("ignoring some target addresses from: {:?}", targets);
     }
-    let new_conn = endpoint.connect(targets[0], "localhost")?.await?;
-    let quinn::NewConnection {
-        connection: conn, ..
-    } = new_conn;
+    let conn = endpoint.connect(targets[0], "localhost")?.await?;
 
     let mut proxies = Vec::new();
     for (source, target) in mappings {

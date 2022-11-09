@@ -1,8 +1,7 @@
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
-use anyhow::{anyhow, ensure, Result};
-use futures_util::stream::StreamExt;
+use anyhow::{anyhow, ensure, Context, Result};
 use log::{error, info, warn};
 use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::{Certificate, PrivateKey, RootCertStore};
@@ -34,11 +33,11 @@ pub async fn run(certs: Certs, addr: SocketAddr) -> Result<()> {
     let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(server_crypto));
     server_config.use_retry(true);
 
-    let (_endpoint, mut incomming) = quinn::Endpoint::server(server_config, addr)?;
+    let server = quinn::Endpoint::server(server_config, addr)?;
 
     // connection here is more like a bind in traditional networking;
     // as there are multiple, independent "connections" to it over its life
-    while let Some(conn) = incomming.next().await {
+    while let Some(conn) = server.accept().await {
         // dunno what this explicit 'fut' is about; cargo-culted from the example
         let fut = handle_connection(conn);
         tokio::spawn(async move {
@@ -52,15 +51,11 @@ pub async fn run(certs: Certs, addr: SocketAddr) -> Result<()> {
 }
 
 async fn handle_connection(conn: quinn::Connecting) -> Result<()> {
-    let quinn::NewConnection {
-        connection: _,
-        mut bi_streams,
-        ..
-    } = conn.await?;
+    let conn = conn.await.context("handshake failed")?;
 
-    while let Some(stream) = bi_streams.next().await {
+    loop {
         info!("server stream noticed");
-        let stream = match stream {
+        let stream = match conn.accept_bi().await {
             Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
                 info!("app closed");
                 return Ok(());
@@ -77,8 +72,6 @@ async fn handle_connection(conn: quinn::Connecting) -> Result<()> {
             }
         });
     }
-
-    Ok(())
 }
 
 // apparently this is the supported .. draft version?

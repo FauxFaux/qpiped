@@ -50,8 +50,9 @@
 // 'xt??' (anything starting with 'xt')
 // [unspecified]
 
-use anyhow::{bail, Result};
 use std::fmt;
+
+use anyhow::{bail, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::wire;

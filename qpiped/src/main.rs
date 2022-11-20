@@ -2,15 +2,16 @@ mod args;
 
 use std::env;
 use std::net::ToSocketAddrs;
+use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use qpipe::certs::generate_client_certs;
 use qpipe::frame::{FourCc, HeaderHeader};
 use qpipe::package::read_package;
 use qpipe::server::Certs;
 use tokio::io::AsyncWriteExt;
 
-use crate::args::{Command, Connect, GenClient, Issue, Serve};
+use crate::args::{Command, Connect, Issue, KeyGen, Serve};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,25 +20,33 @@ async fn main() -> Result<()> {
     use clap::Parser as _;
     let args: args::Cli = args::Cli::parse();
 
+    let dirs = directories::ProjectDirs::from("xxx", "fau", "qpiped")
+        .ok_or(anyhow!("unable to locate ('XDG') state directory"))?;
+    let shared = Shared {
+        state_dir: dirs.data_local_dir().to_path_buf(),
+    };
+
     match args.command {
-        Command::GenClient(sub) => gen(sub).await,
-        Command::Issue(sub) => issue(sub).await,
-        Command::Connect(sub) => connect(sub).await,
-        Command::Serve(sub) => serve(sub).await,
+        Command::KeyGen(sub) => keygen(&shared, sub).await,
+        Command::Issue(sub) => issue(&shared, sub).await,
+        Command::Connect(sub) => connect(&shared, sub).await,
+        Command::Serve(sub) => serve(&shared, sub).await,
     }?;
 
     Ok(())
 }
 
-async fn gen(_args: GenClient) -> Result<()> {
+struct Shared {
+    state_dir: PathBuf,
+}
+
+async fn keygen(_shared: &Shared, _args: KeyGen) -> Result<()> {
     let (csr, keys) = generate_client_certs()?;
     Ok(())
 }
 
-async fn issue(args: Issue) -> Result<()> {
-    let dirs = directories::ProjectDirs::from("xxx", "fau", "qpiped").unwrap();
-    let path = dirs.data_local_dir();
-    let (ca_cert, ca_key) = qpipe::certs::server(path, &["localhost"])?;
+async fn issue(shared: &Shared, args: Issue) -> Result<()> {
+    let (ca_cert, ca_key) = qpipe::certs::server(&shared.state_dir, &["localhost"])?;
     let client_cert = qpipe::certs::mint_client(&ca_key, &qpipe::certs::parse_client(&args.csr)?)?;
     drop(ca_key);
 
@@ -64,7 +73,7 @@ async fn write_der(
     Ok(())
 }
 
-async fn connect(args: Connect) -> Result<()> {
+async fn connect(_shared: &Shared, args: Connect) -> Result<()> {
     let package = env::var("PACKAGE").context("env var PACKAGE must contain a package")?;
     let certs = read_package(&package).await?;
     let mut mappings = Vec::new();
@@ -83,7 +92,7 @@ async fn connect(args: Connect) -> Result<()> {
     Ok(())
 }
 
-async fn serve(args: Serve) -> Result<()> {
+async fn serve(_shared: &Shared, args: Serve) -> Result<()> {
     let dirs = directories::ProjectDirs::from("xxx", "fau", "qpiped").unwrap();
     let path = dirs.data_local_dir();
     let (cert, key) = qpipe::certs::server(path, &["localhost"])?;

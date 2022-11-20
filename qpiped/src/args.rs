@@ -10,14 +10,14 @@ pub struct Cli {
 pub enum Command {
     Issue(Issue),
 
-    GenClient(GenClient),
+    KeyGen(KeyGen),
     Connect(Connect),
 
     Serve(Serve),
 }
 
 #[derive(Args)]
-pub struct GenClient {}
+pub struct KeyGen {}
 
 #[derive(Args)]
 pub struct Issue {

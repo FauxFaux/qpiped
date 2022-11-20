@@ -111,9 +111,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "clap"
-version = "4.0.22"
+version = "4.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91b9970d7505127a162fdaa9b96428d28a479ba78c9ec7550a63a5d9863db682"
+checksum = "2148adefda54e14492fb9bddcc600b4344c5d1a3123bd666dcb939c6f0e0e57e"
 dependencies = [
  "atty",
  "bitflags",
@@ -446,9 +446,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "os_str_bytes"
-version = "6.3.1"
+version = "6.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3baf96e39c5359d2eb0dd6ccb42c62b91d9678aa68160d261b9e0ccbf9e9dea9"
+checksum = "7b5bf27447411e9ee3ff51186bf7a08e16c341efdde93f4d823e8844429bed7e"
 
 [[package]]
 name = "pem"
@@ -541,9 +541,9 @@ dependencies = [
 
 [[package]]
 name = "quinn"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a5f2962a2f18666b1b690cbc33f528b4fcdfc6e51a84b47c7fb19b6a9fab753"
+checksum = "57659b2d8340fa1a8b9358d14597b0b62ea8b9f6cd77cde07895079d619d2d4e"
 dependencies = [
  "bytes",
  "pin-project-lite",
@@ -559,9 +559,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1268269057c3f78dab82fe8d8b7834e656710cff55b97dbc890a67dcc113b2e"
+checksum = "57098b1a3d2159d13dc3a98c0e3a5f8ab91ac3dd2471e52b1d712ea0c1085555"
 dependencies = [
  "bytes",
  "rand",
@@ -940,9 +940,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.21.2"
+version = "1.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9e03c497dc955702ba729190dc4aac6f2a0ce97f913e5b1b5912fc5039d9099"
+checksum = "d76ce4a75fb488c605c54bf610f221cea8b0dafb53333c1a67e8ee199dcd2ae3"
 dependencies = [
  "autocfg",
  "bytes",

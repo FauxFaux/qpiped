@@ -17,7 +17,7 @@ pub struct Csr(Vec<u8>);
 fn load_or_generate(
     state_dir: impl AsRef<Path>,
     short_name: &str,
-    generate: impl FnOnce(&Path, &Path) -> Result<KeyPair>,
+    generate: impl FnOnce() -> Result<KeyPair>,
 ) -> Result<KeyPair> {
     let path = state_dir.as_ref();
     fs::create_dir_all(&path)
@@ -35,15 +35,19 @@ fn load_or_generate(
                 fs::read(key_path).context("loading key after already loading cert")?,
             ),
         )),
-        Err(ref e) if e.kind() == io::ErrorKind::NotFound => generate(&cert_path, &key_path),
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
+            let (cert, key) = generate()?;
+            fs::write(&cert_path, &cert.0)
+                .with_context(|| anyhow!("failed to write certificate to {:?}", cert_path))?;
+            fs::write(&key_path, &key.0).context("failed to write private key")?;
+            Ok((cert, key))
+        }
         Err(e) => Err(e).with_context(|| anyhow!("failed to read cert from {cert_path:?}")),
     }
 }
 
 pub fn server(state_dir: impl AsRef<Path>, names: &[&str]) -> Result<KeyPair> {
-    load_or_generate(state_dir, "server", |cert_path, key_path| {
-        generate_server_certs(&cert_path, &key_path, names)
-    })
+    load_or_generate(state_dir, "server", || generate_server_certs(names))
 }
 
 pub fn parse_client(buf: &[u8]) -> Result<CertificateSigningRequest> {
@@ -76,14 +80,13 @@ pub fn generate_client_certs() -> Result<(Csr, rustls::PrivateKey)> {
     params.is_ca = IsCa::ExplicitNoCa;
     let client = Certificate::from_params(params)?;
     let req = client.serialize_request_der()?;
-    Ok((Csr(req), rustls::PrivateKey(client.get_key_pair().serialize_der())))
+    Ok((
+        Csr(req),
+        rustls::PrivateKey(client.get_key_pair().serialize_der()),
+    ))
 }
 
-fn generate_server_certs(
-    cert_path: &Path,
-    key_path: &Path,
-    names: &[&str],
-) -> Result<KeyPair> {
+fn generate_server_certs(names: &[&str]) -> Result<KeyPair> {
     let mut params =
         rcgen::CertificateParams::new(names.iter().map(|s| s.to_string()).collect::<Vec<_>>());
     params.distinguished_name = DistinguishedName::new();
@@ -98,9 +101,6 @@ fn generate_server_certs(
     let cert = Certificate::from_params(params)?;
     let key = cert.serialize_private_key_der();
     let cert = cert.serialize_der()?;
-    fs::write(&cert_path, &cert)
-        .with_context(|| anyhow!("failed to write certificate to {:?}", cert_path))?;
-    fs::write(&key_path, &key).context("failed to write private key")?;
     Ok((rustls::Certificate(cert), rustls::PrivateKey(key)))
 }
 

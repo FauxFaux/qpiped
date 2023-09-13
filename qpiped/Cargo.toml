@@ -7,8 +7,8 @@ edition = "2021"
 anyhow = "1"
 base64 = "0.21"
 clap = { version = "4", features = ["derive"] }
-directories = "4"
-env_logger = "0.9"
+directories = "5"
+env_logger = "0.10"
 futures-util = "0.3"
 tokio = { version = "1", features = ["rt", "time", "macros", "rt-multi-thread", "io-util"] }
 

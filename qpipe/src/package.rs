@@ -1,4 +1,6 @@
 use anyhow::{anyhow, bail, ensure, Result};
+// why
+use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
 use rustls::{Certificate, PrivateKey};
 use tokio::io::AsyncReadExt;
 
@@ -17,7 +19,7 @@ pub async fn read_package(package: &str) -> Result<ClientCerts> {
         "expected package magic, not {:?}...",
         package.chars().take(20).collect::<String>()
     );
-    let mut package = std::io::Cursor::new(base64::decode(&package[package_magic.len()..])?);
+    let mut package = std::io::Cursor::new(base64.decode(&package[package_magic.len()..])?);
     let mut server_cert = None;
     let mut client_cert = None;
     let mut client_key = None;

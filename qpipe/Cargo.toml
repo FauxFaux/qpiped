@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-base64 = "0.13"
+base64 = "0.21"
 futures-util = "0.3"
 log = "0.4"
 quinn = "0.9"

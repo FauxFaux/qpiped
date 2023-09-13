@@ -5,6 +5,8 @@ use std::net::ToSocketAddrs;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
+// why
+use base64::{engine::general_purpose::STANDARD as base64, Engine as _};
 use qpipe::certs::generate_client_certs;
 use qpipe::frame::{FourCc, HeaderHeader};
 use qpipe::package::read_package;
@@ -54,7 +56,7 @@ async fn issue(shared: &Shared, args: Issue) -> Result<()> {
     write_der(&mut buf, *b"scrt", &ca_cert.0).await?;
     write_der(&mut buf, *b"ccrt", &client_cert.0).await?;
     HeaderHeader::finished().write_all(&mut buf).await?;
-    println!("qpipe1:{}", base64::encode(buf));
+    println!("qpipe1:{}", base64.encode(buf));
     Ok(())
 }
 

@@ -634,7 +634,7 @@ name = "qpipe"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.13.1",
+ "base64 0.21.4",
  "futures-util",
  "log",
  "quinn",
@@ -649,7 +649,7 @@ name = "qpiped"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.13.1",
+ "base64 0.21.4",
  "clap",
  "directories",
  "env_logger",

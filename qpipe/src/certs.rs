@@ -20,6 +20,7 @@ fn load_or_generate(
     short_name: &str,
     generate: impl FnOnce() -> Result<KeyPair>,
 ) -> Result<KeyPair> {
+    let path = root.as_ref();
     let cert_path = path.join(format!("{short_name}.cert"));
     let key_path = path.join(format!("{short_name}.key"));
 
@@ -101,6 +102,7 @@ fn generate_server_certs(names: &[&str]) -> Result<KeyPair> {
 
 fn load_or_generate_key(state_dir: impl AsRef<Path>) -> Result<KeyPair> {
     let key = rcgen::KeyPair::generate(&CertificateParams::default().alg)?;
+    unimplemented!()
 }
 
 // client generates a key in a file; it's their key everywhere

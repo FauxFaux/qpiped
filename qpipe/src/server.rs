@@ -25,7 +25,7 @@ pub async fn run(certs: Certs, addr: SocketAddr) -> Result<()> {
     }
     let mut server_crypto = rustls::ServerConfig::builder()
         .with_safe_defaults()
-        .with_client_cert_verifier(AllowAnyAuthenticatedClient::new(root))
+        .with_client_cert_verifier(Arc::new(AllowAnyAuthenticatedClient::new(root)))
         .with_single_cert(certs.server_chain, certs.server_key)?;
 
     server_crypto.alpn_protocols = alpn_protocols();

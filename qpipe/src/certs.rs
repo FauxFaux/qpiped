@@ -72,8 +72,7 @@ fn test_gen_client() -> Result<()> {
 }
 
 pub fn generate_client_certs() -> Result<(Csr, rustls::PrivateKey)> {
-    let mut params = CertificateParams::new(vec!["client".to_string()]);
-    params.is_ca = IsCa::ExplicitNoCa;
+    let params = CertificateParams::new(vec!["client".to_string()]);
     let client = Certificate::from_params(params)?;
     let req = client.serialize_request_der()?;
     Ok((

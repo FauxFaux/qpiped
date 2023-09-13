@@ -4,3 +4,6 @@ members = [
   "qpipe",
   "qpiped",
 ]
+
+resolver = "2"
+

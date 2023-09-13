@@ -7,6 +7,7 @@ use rcgen::{
     BasicConstraints, Certificate, CertificateParams, CertificateSigningRequest, DistinguishedName,
     DnType, ExtendedKeyUsagePurpose, IsCa, KeyUsagePurpose,
 };
+use rustls::PrivateKey;
 
 type KeyPair = (rustls::Certificate, rustls::PrivateKey);
 #[derive(Clone, Debug)]
@@ -15,16 +16,10 @@ pub struct Csr(Vec<u8>);
 // note that, despite the return types, there's not a single iota
 // of validation of the returned objects in this method
 fn load_or_generate(
-    state_dir: impl AsRef<Path>,
+    root: impl AsRef<Path>,
     short_name: &str,
     generate: impl FnOnce() -> Result<KeyPair>,
 ) -> Result<KeyPair> {
-    let path = state_dir.as_ref();
-    fs::create_dir_all(&path)
-        .with_context(|| anyhow!("failed to create state directory {:?}", path))?;
-
-    remove_access(path)?;
-
     let cert_path = path.join(format!("{short_name}.cert"));
     let key_path = path.join(format!("{short_name}.key"));
 
@@ -71,7 +66,7 @@ fn test_gen_client() -> Result<()> {
     let state_dir = tempfile::tempdir()?;
     let (_ca_cert, ca_key) = server(state_dir, &["localhost"])?;
     let (csr, client_keys) = generate_client_certs()?;
-    let client_cert = mint_client(&ca_key, &parse_client(&csr)?)?;
+    let client_cert = mint_client(&ca_key, &parse_client(&csr.0)?)?;
     Ok(())
 }
 
@@ -101,8 +96,19 @@ fn generate_server_certs(names: &[&str]) -> Result<KeyPair> {
     let cert = Certificate::from_params(params)?;
     let key = cert.serialize_private_key_der();
     let cert = cert.serialize_der()?;
-    Ok((rustls::Certificate(cert), rustls::PrivateKey(key)))
+    Ok((rustls::Certificate(cert), PrivateKey(key)))
 }
+
+fn load_or_generate_key(state_dir: impl AsRef<Path>) -> Result<KeyPair> {
+    let key = rcgen::KeyPair::generate(&CertificateParams::default().alg)?;
+}
+
+// client generates a key in a file; it's their key everywhere
+// connect to a server, load our key, turn it into a CSR, send it to the server
+// server replies with our cert and their cert
+// store this .. certificate pair under, say, the server's cert's fingerprint
+// client picks this during negotiation, sigh
+// much better to just not store it; in memory only? If so, why bother saving the key.
 
 #[cfg(unix)]
 fn remove_access(path: &Path) -> Result<()> {
